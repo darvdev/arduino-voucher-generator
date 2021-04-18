@@ -49,7 +49,8 @@ void setup()
   displayConfig();
   bool result = verifyVouchers(voucherFile);
 
-  if (!result) return;
+  if (!result)
+    return;
 
   pinMode(coinpin, INPUT_PULLUP);
   attachInterrupt(digitalPinToInterrupt(coinpin), isr, FALLING);
@@ -64,13 +65,16 @@ void loop()
 
   unsigned long _millis = millis();
 
-  if (_millis - _previousMillis >= interval) {
+  if (_millis - _previousMillis >= interval)
+  {
     _previousMillis = _millis;
 
-    if (_inserted && _pulse > 0) {
+    if (_inserted && _pulse > 0)
+    {
 
       _coin += _pulse;
-      if (_coin >= _count) {
+      if (_coin >= _count)
+      {
         _coin -= _count;
 
         debug("Voucher: ", String(nextVoucher), "", _debug);
@@ -79,8 +83,9 @@ void loop()
         nextVoucher = "";
         initNextVoucher(voucherFile);
         verifyVouchers(voucherFile);
-
-      } else {
+      }
+      else
+      {
         debug("Insert another ", String(_count - _coin), " peso coin to show the voucher", _debug);
       }
 
@@ -89,7 +94,6 @@ void loop()
 
     _inserted = false;
   }
-
 }
 
 uint8_t setConfig(String file, uint8_t data)
@@ -162,7 +166,7 @@ uint8_t setConfig(String file, uint8_t data)
 void displayConfig()
 {
   debug(String('\n'), "CONFIGURATION", "", _debug);
-  debug("Voucher length: ", String(_length), "", _debug );
+  debug("Voucher length: ", String(_length), "", _debug);
   debug("Coin count: ", String(_count), "", _debug);
   debug("Show serial: ", String(_debug), String('\n'), _debug);
 }
@@ -200,8 +204,13 @@ bool verifyVouchers(String file)
     {
       char x = _file.read();
 
-      if (x == '\n')
+      if (x != '\n')
       {
+        _data += x;
+      }
+      else
+      {
+
         _line++;
         _data.trim();
         if (_data == "")
@@ -261,10 +270,6 @@ bool verifyVouchers(String file)
           }
           _data = "";
         }
-      }
-      else
-      {
-        _data += x;
       }
     }
 
@@ -343,13 +348,16 @@ void initNextVoucher(String file)
 
   File _file = SD.open(file, O_WRITE);
 
-  if (!_file) {
+  if (!_file)
+  {
     Serial.print("Error: ");
     Serial.print(file);
     Serial.println(" file failed to open.");
     _file.close();
     return;
-  } else {
+  }
+  else
+  {
 
     int pos = (_length + 1) * nextLine;
 
@@ -366,7 +374,6 @@ void initNextVoucher(String file)
   }
 
   _file.close();
-
 }
 
 void isr()
@@ -385,7 +392,8 @@ void isr()
 
 void debug(String text1 = "", String text2 = "", String text3 = "", bool show = true)
 {
-  if (show) {
+  if (show)
+  {
     Serial.print(text1);
     Serial.print(text2);
     Serial.println(text3);
