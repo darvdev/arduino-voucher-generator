@@ -1,0 +1,8 @@
+ERR-100	Cannot read SD card or SD card module.
+ERR-102	vouchers.txt file not found.
+ERR-103	vouchers.txt file failed to open.
+ERR-104	Found empty line data in vouchers.txt file
+ERR-105	Invalid data format in vouchers.txt file. Comma is not found;
+ERR-106	Found invalid voucher format length.
+ERR-107	Found voucher identifier length is morethan 1.
+ERR-108	No available vouchers found.

@@ -1,5 +1,6 @@
 #include <SPI.h>
 #include <SD.h>
+#include <LiquidCrystal_I2C.h>
 
 #define cspin 4
 #define baud 9600
@@ -8,60 +9,169 @@
 #define countFile "count.txt"
 #define timeFile "time.txt"
 #define coinFile "coin.txt"
-#define debugFile "debug.txt"
 
 #define interval 150
 #define coinpin 2
 #define signalpin 3
+#define ledpin 5
+#define buttonpin 6
+
+#define version "1.0"
+
+LiquidCrystal_I2C lcd(0x27, 16, 2);
 
 uint8_t _length = 8;
 uint8_t _count = 5;
 uint8_t _format = 0;
 uint8_t _time = 30;
-uint8_t _debug = 0;
 String nextVoucher = "";
 word nextLine = 0;
-String err = "000";
+bool nextVoucherResult = false;
+bool verifyVoucherResult = false;
 
 uint8_t _coin = 0;
 uint8_t _pulse = 0;
 unsigned long _previousMillis = 0;
+unsigned long _timerMillis = 0;
 bool _inserted = false;
+bool startTimer = false;
+uint8_t timer = 0;
+String err = "";
+
+int ledState = LOW;
+int buttonState;
+int lastButtonState = LOW;
+unsigned long lastDebounceTime = 0;
+unsigned long debounceDelay = 50;
 
 void setup()
 {
-
+  pinMode(buttonpin, INPUT);
   pinMode(signalpin, OUTPUT);
+  pinMode(ledpin, OUTPUT);
+  pinMode(coinpin, INPUT_PULLUP);
   digitalWrite(signalpin, LOW);
 
   Serial.begin(baud);
-  Serial.print("Initializing SD card... ");
+  Serial.print(F("Voucher Generator v"));
+  Serial.println(version);
+
+  lcd.begin();
+  lcd.backlight();
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print(F("VoucherGenerator"));
+  lcd.setCursor(0, 1);
+  lcd.print(F("Version "));
+  lcd.print(version);
+  delay(3000);
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print(F("Initializing,"));
+  lcd.setCursor(0, 1);
+  lcd.print(F("Please wait..."));
+
+  Serial.print(F("Initializing SD card module... "));
 
   if (!SD.begin(cspin))
   {
-    err = "100";
-    Serial.println("\nError: ERR-100 Cannot read SD card or module.");
+    lcd.clear();
+    lcd.print(F("ERR-100"));
+    Serial.println(F("\nError: Cannot read SD card or SD card module."));
     return;
   }
-  Serial.println("SUCCESS!");
+  Serial.println(F("SUCCESS!"));
 
   _length = setConfig(lengthFile, _length);
   _count = setConfig(countFile, _count);
   _time = setConfig(timeFile, _time);
   _coin = setConfig(coinFile, _coin);
-  _debug = setConfig(debugFile, _debug);
   displayConfig();
-  if (!verifyVouchers(voucherFile)) return;
 
-  pinMode(coinpin, INPUT_PULLUP);
-  attachInterrupt(digitalPinToInterrupt(coinpin), isr, FALLING);
-  digitalWrite(signalpin, HIGH);
+  verifyVoucherResult = verifyVouchers(voucherFile);
+  if (!verifyVoucherResult) return;
+
+  Serial.println(F("\nREADY!\n"));
 }
 
 void loop()
 {
-
   unsigned long _millis = millis();
+  uint8_t buttonReading = digitalRead(buttonpin);
+
+  if (buttonReading != lastButtonState) {
+    lastDebounceTime = _millis;
+  }
+
+  if ((_millis - lastDebounceTime) > debounceDelay) {
+    if (buttonReading != buttonState) {
+      buttonState = buttonReading;
+      if (buttonState == HIGH) {
+
+        if (startTimer) {
+          startTimer = false;
+          timer = 0;
+          if (!nextVoucherResult) {
+            lcd.clear();
+            lcd.setCursor(0, 0);
+            lcd.print(F("ERR-"));
+            lcd.print(err);
+            return;
+          }
+          verifyVoucherResult = verifyVouchers(voucherFile);
+          return;
+        }
+
+        if (verifyVoucherResult) {
+          verifyVoucherResult = false;
+          attachInterrupt(digitalPinToInterrupt(coinpin), isr, FALLING);
+          digitalWrite(signalpin, HIGH);
+          lcd.clear();
+          lcd.setCursor(0, 0);
+          lcd.print(F("Insert "));
+          lcd.print(_count - _coin);
+          lcd.print(F(" Peso"));
+          digitalWrite(ledpin, HIGH);
+        }
+      }
+    }
+  }
+
+
+
+
+  if (_millis - _timerMillis >= 1000) {
+    _timerMillis = _millis;
+    if (startTimer) {
+
+      uint8_t index = 16 / 2 - (_time > 99 ? 2 : _time > 9 ? 1 : 0);
+      if (timer > 99 && timer == 99) {
+        lcd.setCursor(index + 2, 1);
+        lcd.print(" ");
+      }
+      if (_time > 9 && timer == 9) {
+        lcd.setCursor(index + 1, 1);
+        lcd.print(" ");
+      }
+
+      lcd.setCursor(index, 1);
+      lcd.print(timer);
+
+      if (timer == 0) {
+        startTimer = false;
+        timer = 0;
+        if (!nextVoucherResult) {
+          lcd.clear();
+          lcd.setCursor(0, 0);
+          lcd.print(F("ERR-"));
+          lcd.print(err);
+          return;
+        }
+        verifyVoucherResult = verifyVouchers(voucherFile);
+      }
+      timer--;
+    }
+  }
 
   if (_millis - _previousMillis >= interval)
   {
@@ -69,35 +179,30 @@ void loop()
 
     if (_inserted && _pulse > 0)
     {
-
       _coin += _pulse;
       if (_coin >= _count)
       {
         _coin -= _count;
         setCoin(coinFile, _coin);
-        Serial.print("Voucher: ");
-        Serial.println(nextVoucher);
-        Serial.print("Line: ");
-        Serial.println(nextLine);
-        Serial.print("Coin: ");
-        Serial.println(_coin);
-        Serial.println();
+        lcd.clear();
+        lcd.setCursor(16 / 2 - _length / 2, 0);
+        lcd.print(nextVoucher);
         nextVoucher = "";
-        if (!initNextVoucher(voucherFile)) {
-          digitalWrite(signalpin, LOW);
-          return;
-        }
-        if (!verifyVouchers(voucherFile)) {
-          digitalWrite(signalpin, LOW);
-          return;
-        }
+        timer = _time;
+        startTimer = true;
+        nextVoucherResult = initNextVoucher(voucherFile);
+        digitalWrite(signalpin, LOW);
+        detachInterrupt(digitalPinToInterrupt(coinpin));
+        digitalWrite(ledpin, LOW);
       }
       else
       {
         setCoin(coinFile, _coin);
-        Serial.print("Insert ");
-        Serial.print(_count - _coin);
-        Serial.println(" peso coin");
+        lcd.clear();
+        lcd.setCursor(0, 0);
+        lcd.print(F("Insert "));
+        lcd.print(_count - _coin);
+        lcd.print(F(" Peso"));
       }
 
       _pulse = 0;
@@ -105,97 +210,71 @@ void loop()
 
     _inserted = false;
   }
+
+  lastButtonState = buttonReading;
 }
 
 uint8_t setConfig(String file, uint8_t data)
 {
   uint8_t value = data;
-
-  if (!SD.exists(file))
+  File _file = SD.open(file, FILE_READ);
+  if (_file)
   {
-    Serial.println("File not found.");
-  }
-  else
-  {
+    Serial.print(F("Reading "));
+    Serial.print(file);
+    Serial.print(F(" file... "));
 
-    File _file = SD.open(file, FILE_READ);
-
-    if (!_file)
+    String text = "";
+    while (_file.available())
     {
-      Serial.println("File failed to open.");
-    }
-    else
-    {
-
-      Serial.print("Reading ");
-      Serial.print(file);
-      Serial.print(" file... ");
-
-      String text = "";
-
-      while (_file.available())
+      char x = _file.read();
+      if (x == '\n')
       {
-        char x = _file.read();
-        if (x == '\n')
-        {
-          break;
-        }
-        else
-        {
-          text += x;
-        }
-      }
-
-      text.trim();
-
-      if (text == "")
-      {
-        Serial.println("\nFile is empty.");
+        break;
       }
       else
       {
-        uint8_t convert = text.toInt();
-        if (convert == 0)
-        {
-          Serial.println("\nData format invalid.");
-        }
-        else
-        {
-          value = convert;
-          Serial.println("SUCCESS!");
-        }
+        text += x;
       }
     }
 
-    _file.close();
+    text.trim();
+    if (text != "")
+    {
+      uint8_t convert = text.toInt();
+      if (convert > 0)
+      {
+        value = convert;
+      }
+      Serial.println(F("SUCCESS!"));
+    }
   }
 
+  _file.close();
   return value;
 }
 
 void displayConfig()
 {
-  Serial.println("\nCONFIGURATION");
-  Serial.print("Voucher length: ");
+  Serial.println(F("\nCONFIGURATION"));
+  Serial.print(F("Voucher length: "));
   Serial.println(_length);
-  Serial.print("Coin count: ");
+  Serial.print(F("Coin count: "));
   Serial.println(_count);
-  Serial.print("Waiting time: ");
+  Serial.print(F("Waiting time: "));
   Serial.println(_time);
-  Serial.print("Previous coin: ");
+  Serial.print(F("Previous coin: "));
   Serial.println(_coin);
-  Serial.print("Debug mode: ");
-  Serial.println(_debug);
   Serial.println();
 }
 
 bool verifyVouchers(String file)
 {
-
+  lcd.clear();
   if (!SD.exists(file))
   {
-    err = "102";
-    Serial.println("Error: File not found.");
+    lcd.print(F("ERR-102"));
+    Serial.println(F("Error: File not found."));
     return false;
   }
 
@@ -203,17 +282,17 @@ bool verifyVouchers(String file)
 
   if (!_file)
   {
-    err = "103";
-    Serial.println("Error: File failed to open.");
+    lcd.print(F("ERR-103"));
+    Serial.println(F("Error: File failed to open."));
     _file.close();
     return false;
   }
   else
   {
 
-    Serial.print("Reading ");
+    Serial.print(F("Reading "));
     Serial.print(file);
-    Serial.print(" file... ");
+    Serial.print(F(" file... "));
 
     String _data = "";
     word _used = 0;
@@ -222,9 +301,7 @@ bool verifyVouchers(String file)
 
     while (_file.available())
     {
-
       char x = _file.read();
-
       if (x != '\n')
       {
         _data += x;
@@ -232,44 +309,40 @@ bool verifyVouchers(String file)
       else
       {
         _line++;
-
         if (_data == "")
         {
-          err = "104";
-          Serial.println("\nError: Found empty line data.");
+          lcd.print(F("ERR-104"));
+          Serial.println(F("\nError: Found empty line data."));
           _file.close();
           return false;
         }
         else
         {
-
           uint8_t index = _data.indexOf(',');
           if (index == -1)
           {
-            err = "105";
-            Serial.println("\nError: Found invalid data format. Comma is not found.");
+            lcd.print(F("ERR-105"));
+            Serial.println(F("\nError: Found invalid data format. Comma is not found."));
             _file.close();
             return false;
           }
           else
           {
             String _text = _data.substring(0, index);
-
             if (_text.length() != _length)
             {
-              err = "106";
-              Serial.println("\nError: Found invalid voucher format length.");
+              lcd.print(F("ERR-106"));
+              Serial.println(F("\nError: Found invalid voucher format length."));
               _file.close();
               return false;
             }
             else
             {
               String _status = _data.substring(index + 1);
-
               if (_status.length() > 1)
               {
-                err = "107";
-                Serial.println("\nError: Found invalid data format.");
+                lcd.print(F("ERR-107"));
+                Serial.println(F("\nError: Found invalid data format."));
                 _file.close();
                 return false;
               }
@@ -302,7 +375,6 @@ bool verifyVouchers(String file)
       if (index != -1)
       {
         String _text = _data.substring(0, index);
-
         if (_text.length() == _length)
         {
           String _status = _data.substring(index + 1);
@@ -329,34 +401,17 @@ bool verifyVouchers(String file)
 
     }
 
-    //    if (_line == nextLine && nextVoucher == "") {
-    //      err = "108";
-    //      Serial.println("\nError: Empty vouchers.");
-    //      return false;
-    //    }
-
-    Serial.println("SUCCESS!");
-    Serial.print("Available: ");
-    Serial.println(_available);
-    Serial.print("Used: ");
-    Serial.println(_used);
-    Serial.print("Total: ");
-    Serial.println(_line);
+    Serial.println(F("SUCCESS!"));
 
     if (_available == 0) {
-      err = "108";
-      Serial.println("\nError: No available vouchers found.");
+      lcd.print(F("ERR-108"));
+      Serial.println(F("\nError: No available vouchers found."));
       _file.close();
       return false;
     }
 
-    Serial.print("Next voucher: ");
-    Serial.println(nextVoucher);
-    Serial.print("Next line: ");
-    Serial.println(nextLine);
-    Serial.print("\nInsert ");
-    Serial.print(_count - _coin);
-    Serial.println(" peso coin");
+    lcd.setCursor(0, 0);
+    lcd.print(F("Press the Button"));
   }
 
   _file.close();
@@ -367,17 +422,16 @@ bool initNextVoucher(String file)
 {
   if (!SD.exists(file))
   {
-    err = "102";
-    Serial.print("Error: File not found.");
+    err = F("102");
+    Serial.print(F("Error: File not found."));
     return false;
   }
 
   File _file = SD.open(file, O_WRITE);
-
   if (!_file)
   {
-    err = "103";
-    Serial.println("Error: File failed to open.");
+    err = F("103");
+    Serial.println(F("Error: File failed to open."));
     _file.close();
     return false;
   }
