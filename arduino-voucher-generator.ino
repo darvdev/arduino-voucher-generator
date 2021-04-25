@@ -4,7 +4,7 @@
 
 #define CS_PIN 10
 #define BAUD_RATE 9600
-#define LENTH_FILE "length.txt"
+#define LENGTH_FILE "length.txt"
 #define VOUCHERS_FILE "vouchers.txt"
 #define VOUCHER_FILE "voucher.txt"
 #define COUNT_FILE "count.txt"
@@ -83,12 +83,14 @@ void setup()
   }
   Serial.println(F("SUCCESS!"));
 
-  _length = setConfig(LENTH_FILE, _length);
+  _length = setConfig(LENGTH_FILE, _length);
   _count = setConfig(COUNT_FILE, _count);
   _timer = setConfig(TIMER_FILE, _timer);
   _coin = setConfig(COIN_FILE, _coin);
   _nextVoucher = getVoucher(VOUCHER_FILE);
   displayConfig();
+
+  Serial.println(_nextVoucher);
 
   if (_nextVoucher != "") {
     lcd.clear();
@@ -241,20 +243,20 @@ void loop()
   _lastButtonState = buttonReading;
 }
 
-uint8_t setConfig(String file, uint8_t data)
+uint8_t setConfig(String f, uint8_t data)
 {
   uint8_t value = data;
-  File _file = SD.open(file, FILE_READ);
-  if (_file)
+  File file = SD.open(f, FILE_READ);
+  if (file)
   {
     Serial.print(F("Reading "));
-    Serial.print(file);
+    Serial.print(f);
     Serial.print(F(" file... "));
 
     String text = "";
-    while (_file.available())
+    while (file.available())
     {
-      char x = _file.read();
+      char x = file.read();
       if (x == '\n')
       {
         break;
@@ -277,17 +279,17 @@ uint8_t setConfig(String file, uint8_t data)
     }
   }
 
-  _file.close();
+  file.close();
   return value;
 }
 
-String getVoucher(String file) {
-  File _file = SD.open(file, FILE_READ);
-  if (_file) {
+String getVoucher(String f) {
+  File file = SD.open(f, FILE_READ);
+  if (file) {
     String text = "";
-    while (_file.available())
+    while (file.available())
     {
-      char x = _file.read();
+      char x = file.read();
       if (x == '\n')
       {
         break;
@@ -299,20 +301,20 @@ String getVoucher(String file) {
     }
     text.trim();
     if (text.length() == _length) {
-      _file.close();
+      file.close();
       return text;
     }
   }
-  _file.close();
+  file.close();
   return "";
 }
 
-void setVoucher(String file, String voucher) {
-  File _file = SD.open(file, O_TRUNC | O_CREAT | O_WRITE);
-  if (_file) {
-    _file.print(voucher);
+void setVoucher(String f, String voucher) {
+  File file = SD.open(f, O_TRUNC | O_CREAT | O_WRITE);
+  if (file) {
+    file.print(voucher);
   }
-  _file.close();
+  file.close();
 }
 
 void displayConfig()
@@ -490,41 +492,41 @@ bool verifyVouchers(String f)
   return true;
 }
 
-bool initNextVoucher(String file)
+bool initNextVoucher(String f)
 {
-  if (!SD.exists(file))
+  if (!SD.exists(f))
   {
     _err = F("102");
     Serial.print(F("Error: File not found."));
     return false;
   }
 
-  File _file = SD.open(file, O_WRITE);
-  if (!_file)
+  File file = SD.open(f, O_WRITE);
+  if (!file)
   {
     _err = F("103");
     Serial.println(F("Error: File failed to open."));
-    _file.close();
+    file.close();
     return false;
   }
   else
   {
     int pos = _length * _nextLine + _nextLine * 3 - 2;
-    _file.seek(pos);
-    _file.write('1');
+    file.seek(pos);
+    file.write('1');
   }
 
-  _file.close();
+  file.close();
   return true;
 }
 
-void setCoin(String file, uint8_t coin) {
+void setCoin(String f, uint8_t coin) {
 
-  File _file = SD.open(file, O_TRUNC | O_CREAT | O_WRITE);
-  if (_file) {
-    _file.print(coin);
+  File file = SD.open(f, O_TRUNC | O_CREAT | O_WRITE);
+  if (file) {
+    file.print(coin);
   }
-  _file.close();
+  file.close();
 }
 
 void isr()
