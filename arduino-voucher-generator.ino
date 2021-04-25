@@ -340,6 +340,7 @@ void displayConfig()
 bool verifyVouchers(String f)
 {
   lcd.clear();
+  lcd.setCursor(0,0);
   if (!SD.exists(f))
   {
     lcd.print(F("ERR-102"));
@@ -357,11 +358,13 @@ bool verifyVouchers(String f)
     return false;
   }
   else
-  {
-
+  {    
     Serial.print(F("Reading "));
     Serial.print(f);
     Serial.print(F(" file... "));
+    lcd.print(F("Reading vouchers"));
+    lcd.setCursor(0,1);
+    lcd.print(F("Please wait..."));
 
     String data = "";
     word used = 0;
@@ -472,6 +475,8 @@ bool verifyVouchers(String f)
 
     Serial.println(F("SUCCESS!"));
 
+    lcd.clear();
+    lcd.setCursor(0, 0);
     if (ave == 0) {
       lcd.print(F("ERR-108"));
       Serial.println(F("\nError: No available vouchers found."));
@@ -479,7 +484,6 @@ bool verifyVouchers(String f)
       return false;
     }
 
-    lcd.setCursor(0, 0);
     lcd.print(F("Press the Button"));
     if (_coin > 0) {
       lcd.setCursor(0, 1);
