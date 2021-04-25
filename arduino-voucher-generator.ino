@@ -2,7 +2,7 @@
 #include <SD.h>
 #include <LiquidCrystal_I2C.h>
 
-#define CS_PIN 4
+#define CS_PIN 10
 #define BAUD_RATE 9600
 #define LENTH_FILE "length.txt"
 #define VOUCHERS_FILE "vouchers.txt"
@@ -14,8 +14,8 @@
 #define COIN_INTERVAL 150
 #define COIN_PIN 2
 #define SIGNAL_PIN 3
-#define LED_PIN 5
-#define BUTTON_PIN 6
+#define LED_PIN 4
+#define BUTTON_PIN 5
 
 #define VERSION "1.0"
 
@@ -54,7 +54,7 @@ void setup()
   digitalWrite(SIGNAL_PIN, LOW);
 
   Serial.begin(BAUD_RATE);
-  Serial.print(F("\nVoucher Generator v"));
+  Serial.print(F("Voucher Generator v"));
   Serial.println(VERSION);
 
   lcd.begin();
