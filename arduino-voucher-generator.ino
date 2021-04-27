@@ -66,6 +66,7 @@ void setup()
   lcd.print(F("Version "));
   lcd.print(VERSION);
   delay(3000);
+
   lcd.clear();
   lcd.setCursor(0, 0);
   lcd.print(F("Initializing,"));
@@ -89,8 +90,6 @@ void setup()
   _coin = setConfig(COIN_FILE, _coin);
   _nextVoucher = getVoucher(VOUCHER_FILE);
   displayConfig();
-
-  Serial.println(_nextVoucher);
 
   if (_nextVoucher != "") {
     lcd.clear();
